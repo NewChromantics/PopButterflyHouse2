@@ -43,7 +43,7 @@
 		return Value / 255;
 	}
 
-
+	var gl = null;
 
 	function main()
 	{
@@ -60,7 +60,7 @@
 		try
 		{
 			var canvas = GetCanvas();
-			var gl = canvas.getContext("webgl");
+			gl = canvas.getContext("webgl");
 		}
 		catch(ex)
 		{}//02
@@ -90,15 +90,19 @@
 		}
 
 		var Time = 0;
-
+		
+		let CanvasGeo = new TGeometry("Canvas");
+		let Uvs = [
+			new float2( 0, 0 ),
+			new float2( 1, 0 ),
+			new float2( 0, 1 ),
+			new float2( 1, 1 ),
+		];
+		CanvasGeo.AddAttribute( new TAttribute("a_position", Uvs ) );
+		
+		
 		function Render()
 		{
-			var Uvs = [
-				0, 0,
-				1, 0,
-				0, 1,
-				1, 1
-			];
 			Time += 1.0 / 60.0;
 			
 			var Colours = [
@@ -114,11 +118,21 @@
 			'5FFFD1FF',
 			];
 			
-			// Draw the object given a set of 2D points, in this case a square
-			drawObject(gl, shaderProgram, 2, Uvs, SdfTexture, HorseTexture, Time, Colours );
-		
-			//	rener again
-			requestAnimationFrame( Render );
+			try
+			{
+				// Draw the object given a set of 2D points, in this case a square
+				drawObject( shaderProgram, CanvasGeo, SdfTexture, HorseTexture, Time, Colours );
+			}
+			catch(Exception)
+			{
+				//	rethrow
+				throw Exception;
+			}
+			finally
+			{
+				//	always request redraw
+				requestAnimationFrame( Render );
+			}
 		}
 		
 		
@@ -208,8 +222,9 @@
 
 		var SdfUrl = 'http://electric.horse/horse_sdf.png';
 		var HorseUrl = 'http://electric.horse/horse.jpg';
-		var SdfTexture = loadTexture(gl,SdfUrl);
-		var HorseTexture = loadTexture(gl,HorseUrl);
+		var SdfTexture = loadTexture(SdfUrl);
+		var HorseTexture = loadTexture(HorseUrl);
+
 
 		ResizeCanvas();
 		Render();
@@ -250,7 +265,7 @@
 		return prog;
 	}
 	
-	function loadTexture(gl, url)
+	function loadTexture(url)
 	{
 		const texture = gl.createTexture();
 		gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -295,77 +310,182 @@
 		return texture;
 	}
 
+	//	let hello = new float2(0,0)
+	function float2(x,y)
+	{
+		this.x = x;
+		this.y = y;
+	}
+
+	//	let hello = new float3(0,0,0)
+	function float3(x,y,z)
+	{
+		this.x = x;
+		this.y = y;
+		this.z = z;
+	}
+
+	function float4(x,y,z,w)
+	{
+		this.x = x;
+		this.y = y;
+		this.z = z;
+		this.w = w;
+	}
+
+//	gl namespace
+var PopGl = {
+	
+	GetTypeAndSize : function(Type)
+	{
+		if ( typeof Type == "number" )	return { Type:gl.FLOAT, Size:1 };
+		if ( Type instanceof float2 ) return { Type:gl.FLOAT, Size:2 };
+		if ( Type instanceof float3 ) return { Type:gl.FLOAT, Size:3 };
+		if ( Type instanceof float4 ) return { Type:gl.FLOAT, Size:4 };
+		throw "Unhandled type " + Typename;
+	}
+	
+};
+
+	function TAttribute(Uniform,Buffer)
+	{
+		this.Uniform = Uniform;
+		
+		let TypeAndSize = PopGl.GetTypeAndSize(Buffer[0]);
+		this.Type = TypeAndSize.Type;
+		this.Size = TypeAndSize.Size;
+		this.Stride = 0;
+		this.Data = Buffer;
+		
+		this.EnumVertexData = function(EnumFloat)
+		{
+			let EnumFloats = function(Element)
+			{
+				if ( typeof Element == "number" )	{	EnumFloat(Element);	}
+				else if ( Element instanceof float2 )	{	EnumFloat(Element.x);	EnumFloat(Element.y);	}
+				else if ( Element instanceof float3 )	{	EnumFloat(Element.x);	EnumFloat(Element.y);	EnumFloat(Element.z);	}
+				else if ( Element instanceof float4 )	{	EnumFloat(Element.x);	EnumFloat(Element.y);	EnumFloat(Element.z);	EnumFloat(Element.w);	}
+				else throw "Unhandled type " + typeof Element;
+			}
+			this.Data.forEach( EnumFloats );
+		}
+	}
+
+	function TGeometry(Name)
+	{
+		this.Name = Name;
+		this.Attributes = [];
+		this.Buffer = null;		//	gl vertex buffer
+		
+		this.bind = function()
+		{
+			throw "todo";
+		}
+		
+		this.AddAttribute = function(Attribute)
+		{
+			//this.Attributes[Attribute.Uniform] = Attribute;
+			this.Attributes[0] = Attribute;
+		}
+		
+		this.CreateBuffer = function()
+		{
+		}
+		
+		this.GetVertexData = function()
+		{
+			let Floats = [];
+			let EnumFloat = function(Float)
+			{
+				Floats.push( Float );
+			};
+			let EnumFloats = function(Attrib)
+			{
+				Attrib.EnumVertexData( EnumFloat );
+			};
+			this.Attributes.forEach( EnumFloats );
+			return new Float32Array( Floats );
+		}
+	}
+
+
 	// Draw an object given a shader program and a list of vertices
-	function drawObject(gl, shaderProgram, coordDimensions, vertexCoords, SdfTexture, HorseTexture, Time, Colours )
+	function drawObject(shaderProgram, Geo, SdfTexture, HorseTexture, Time, Colours )
 	{
 		let SdfUniform = gl.getUniformLocation(shaderProgram, 'SdfTexture');
 		let HorseUniform = gl.getUniformLocation(shaderProgram, 'HorseTexture');
-		let PositionUniform = gl.getAttribLocation(shaderProgram, "a_position");
 		let TimeUniform = gl.getUniformLocation(shaderProgram, "Time");
+
 
 		//	setup textures
 		gl.activeTexture(gl.TEXTURE0);
-		gl.bindTexture(gl.TEXTURE_2D, SdfTexture);
+		try
+		{
+			gl.bindTexture(gl.TEXTURE_2D, SdfTexture);
+		}
+		catch
+		{
+		}
 		gl.uniform1i(SdfUniform, 0);
 		
 		gl.activeTexture(gl.TEXTURE1);
-		gl.bindTexture(gl.TEXTURE_2D, HorseTexture);
+		try
+		{
+			gl.bindTexture(gl.TEXTURE_2D, HorseTexture);
+		}
+		catch
+		{
+		}
 		gl.uniform1i(HorseUniform, 1);
 
 		let ColourCountUniform = gl.getUniformLocation(shaderProgram, "ColourCount");
 		gl.uniform1i(ColourCountUniform, Colours.length);
 		
+		// Set black as the background color
+		gl.clearColor(0, 0, 0, 1); // defaults to white (1,1,1)
+		// Manually clear the canvas.
+		gl.clear(gl.COLOR_BUFFER_BIT);
+
+
+
+
+
 		//	gr; can't use less than with this xml html
 		for ( let i=0;	i<Colours.length;	i++ )
 		{
 			let ColourUniform = gl.getUniformLocation(shaderProgram, "Colour" + i );
 			gl.uniform3f(ColourUniform, GetRed(Colours[i]), GetGreen(Colours[i]), GetBlue(Colours[i]) );
 		}
-
-
-		// Create a buffer and put a single clipspace rectangle in it (2 triangles)
-		var buffer = gl.createBuffer();
-		gl.bindBuffer(gl.ARRAY_BUFFER, buffer);// Set this buffer as the current one for the next buffer operations
-		// Fill the buffer with the triangles.
-		// STATIC_DRAW states that we are only going to write to this buffer very infrequently
-		// so the system can optimise for this situation.
-		// It doesn't stop us from writing to the buffer again,
-		// but it might not be as efficient.
-		// See http://stackoverflow.com/q/16462517 for more details.
-		gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertexCoords), gl.STATIC_DRAW);
-		// Get a reference to the "a_position" variable of the vertex shader,
-		// which we'll connect with the 3D vertex data now stored in the current WebGL buffer.
-		// Enable the a_position vertex attribute for rendering
-		// All client-side capabilities are disabled by default,
-		// including all vertex attribute arrays.
-		gl.enableVertexAttribArray(PositionUniform);
-		// Specify the data structure of the array that will be used to store the vertex position data.
-		// The parameters indicate that the vertexPos attribute is:
-		// - a list of elements with 2 components each (2D vertices) 
-		// - of type gl.Float
-		// - and they should be un-normalized.
-		// The final two parameters are rarely used.
-		// The first specifies the stride of the data i.e. the amount of storage allocated to each element
-		// and the second specifies the offset i.e. where the data starts.
-		// For standard JavaScript arrays both are set to zero to indicate tight packing and no offset.
-		gl.vertexAttribPointer(PositionUniform, coordDimensions, gl.FLOAT, false, 0, 0);
-		
 		gl.uniform1f(TimeUniform, Time);
-		
-		// Set black as the background color
-		gl.clearColor(0, 0, 0, 1); // defaults to white (1,1,1)
-		// Manually clear the canvas.
-		gl.clear(gl.COLOR_BUFFER_BIT);
-		// draw the array set as current by the bindBuffer() command.
-		// - parameter 1: how the vertices are to be grouped into geometric primitives.
-		//   TRIANGLES requires a full set of 3 vertices for each triangle,
-		//   so the common vertices need to be repeated;
-		//   TRIANGLE_STRIP reuses the last 3 vertices, so if the triangles are connected,
-		//   this only requires each vertex to be specified once.
-		//   See https://www.khronos.org/message_boards/showthread.php/7292-Different-drawArrays-modes-in-WebGL#post23621
-		// - Parameter 2: on what index to start
-		// - Parameter 3: how many vertices to draw
-		gl.drawArrays(gl.TRIANGLE_STRIP, 0, vertexCoords.length/coordDimensions);
+		let PositionUniform = gl.getAttribLocation(shaderProgram, "a_position");
+
+
+		//	setup buffer
+		if ( Geo.Buffer == null )
+		{
+			//Geo.CreateBuffer();
+			Geo.Buffer = gl.createBuffer();
+			gl.bindBuffer( gl.ARRAY_BUFFER, Geo.Buffer );
+			
+			//	all interleaved vertex data
+			let Attrib = Geo.Attributes[0];
+			//	gr: need to convert to array of floats...
+			let VertexData = Geo.GetVertexData();
+			gl.bufferData( gl.ARRAY_BUFFER, VertexData, gl.STATIC_DRAW );
+			gl.enableVertexAttribArray( PositionUniform );
+			let Normalised = false;
+			let StrideBytes = 0;
+			let OffsetBytes = 0;
+			gl.vertexAttribPointer( PositionUniform, Attrib.Size, Attrib.Type, Normalised, StrideBytes, OffsetBytes );
+			Geo.VertexCount = Attrib.Data.length;
+		}
+
+		gl.bindBuffer( gl.ARRAY_BUFFER, Geo.Buffer );
+		gl.enableVertexAttribArray( PositionUniform );
+		gl.drawArrays( gl.TRIANGLE_STRIP, 0, Geo.VertexCount );
 	}
+
+
+
 </script></body>
 </html>
