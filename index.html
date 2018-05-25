@@ -222,8 +222,8 @@
 
 		var SdfUrl = 'http://electric.horse/horse_sdf.png';
 		var HorseUrl = 'http://electric.horse/horse.jpg';
-		var SdfTexture = loadTexture(SdfUrl);
-		var HorseTexture = loadTexture(HorseUrl);
+		var SdfTexture = new TTexture("sdf",SdfUrl);
+		var HorseTexture = new TTexture("Horse",HorseUrl);
 
 
 		ResizeCanvas();
@@ -264,51 +264,7 @@
 		}
 		return prog;
 	}
-	
-	function loadTexture(url)
-	{
-		const texture = gl.createTexture();
-		gl.bindTexture(gl.TEXTURE_2D, texture);
-		
-		// Because images have to be download over the internet
-		// they might take a moment until they are ready.
-		// Until then put a single pixel in the texture so we can
-		// use it immediately. When the image has finished downloading
-		// we'll update the texture with the contents of the image.
-		const level = 0;
-		const internalFormat = gl.RGBA;
-		const width = 1;
-		const height = 1;
-		const border = 0;
-		const srcFormat = gl.RGBA;
-		const srcType = gl.UNSIGNED_BYTE;
-		const pixel = new Uint8Array([255, 0, 255, 255]);  // opaque blue
-		gl.texImage2D(gl.TEXTURE_2D, level, internalFormat,
-		width, height, border, srcFormat, srcType,
-		pixel);
-		
-		const image = new Image();
-		image.crossOrigin = "anonymous";
-		image.onload = function()
-		{
-			console.log("Loaded image " + image.src);
-			gl.bindTexture(gl.TEXTURE_2D, texture);
-			gl.texImage2D(gl.TEXTURE_2D, level, internalFormat,	srcFormat, srcType, image);
-			
-			// WebGL1 has different requirements for power of 2 images
-			// vs non power of 2 images so check if the image is a
-			// power of 2 in both dimensions.
-			// No, it's not a power of 2. Turn of mips and set
-			// wrapping to clamp to edge
-			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-		};
-		
-		image.src = url;
-		
-		return texture;
-	}
+
 
 	//	let hello = new float2(0,0)
 	function float2(x,y)
@@ -408,35 +364,98 @@ var PopGl = {
 		}
 	}
 
+    function TTexture(Name,Url)
+    {
+        this.Name = Name;
+        this.Asset = null;
+        
+        this.CreateAsset = function()
+        {
+            this.Asset = gl.createTexture();
+            this.WritePixels( 1, 1, [255, 0, 255, 255] );
+        }
+        
+        this.WritePixels = function(Width,Height,Pixels)
+        {
+            gl.bindTexture(gl.TEXTURE_2D, this.Asset );
+            const level = 0;
+            const internalFormat = gl.RGBA;
+            const srcFormat = gl.RGBA;
+            const srcType = gl.UNSIGNED_BYTE;
+            
+            if ( Pixels instanceof Image )
+            {
+                gl.texImage2D(gl.TEXTURE_2D, level, internalFormat,	srcFormat, srcType, Pixels);
+            }
+            else
+            {
+                //  if Pixels is array
+                const border = 0;
+                const PixelData = new Uint8Array(Pixels);
+                gl.texImage2D(gl.TEXTURE_2D, level, internalFormat, Width, Height, border, srcFormat, srcType, PixelData);
+            }
+
+            // WebGL1 has different requirements for power of 2 images
+            // vs non power of 2 images so check if the image is a
+            // power of 2 in both dimensions.
+            // No, it's not a power of 2. Turn of mips and set
+            // wrapping to clamp to edge
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        }
+        
+        this.Load = function(Url)
+        {
+            const image = new Image();
+            image.crossOrigin = "anonymous";
+            let This = this;
+            image.onload = function()
+            {
+                This.WritePixels( 0, 0, image );
+            };
+            //  trigger load
+            image.src = Url;
+        }
+        
+        
+        //  auto init
+        this.CreateAsset();
+        
+        if ( Url !== undefined )
+            this.Load( Url );
+    }
+
+
+    function BindTexture(Texture,Program,Uniform,TextureIndex)
+    {
+        let UniformPtr = gl.getUniformLocation(Program, Uniform);
+        //  https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API/Tutorial/Using_textures_in_WebGL
+        //  WebGL provides a minimum of 8 texture units;
+        let GlTextureNames = [ gl.TEXTURE0, gl.TEXTURE1, gl.TEXTURE2, gl.TEXTURE3, gl.TEXTURE4, gl.TEXTURE5, gl.TEXTURE6, gl.TEXTURE7 ];
+
+        //	setup textures
+        gl.activeTexture( GlTextureNames[TextureIndex] );
+        try
+        {
+            gl.bindTexture(gl.TEXTURE_2D, Texture.Asset);
+        }
+        catch
+        {
+            //  todo: bind "invalid" texture
+        }
+        gl.uniform1i(UniformPtr, TextureIndex );
+    }
+
 
 	// Draw an object given a shader program and a list of vertices
 	function drawObject(shaderProgram, Geo, SdfTexture, HorseTexture, Time, Colours )
 	{
-		let SdfUniform = gl.getUniformLocation(shaderProgram, 'SdfTexture');
-		let HorseUniform = gl.getUniformLocation(shaderProgram, 'HorseTexture');
+        BindTexture( SdfTexture, shaderProgram, 'SdfTexture', 0 );
+        BindTexture( HorseTexture, shaderProgram, 'HorseTexture', 1 );
+        
 		let TimeUniform = gl.getUniformLocation(shaderProgram, "Time");
 
-
-		//	setup textures
-		gl.activeTexture(gl.TEXTURE0);
-		try
-		{
-			gl.bindTexture(gl.TEXTURE_2D, SdfTexture);
-		}
-		catch
-		{
-		}
-		gl.uniform1i(SdfUniform, 0);
-		
-		gl.activeTexture(gl.TEXTURE1);
-		try
-		{
-			gl.bindTexture(gl.TEXTURE_2D, HorseTexture);
-		}
-		catch
-		{
-		}
-		gl.uniform1i(HorseUniform, 1);
 
 		let ColourCountUniform = gl.getUniformLocation(shaderProgram, "ColourCount");
 		gl.uniform1i(ColourCountUniform, Colours.length);
