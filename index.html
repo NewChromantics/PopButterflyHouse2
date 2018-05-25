@@ -80,11 +80,14 @@
 			//	gr: where did this border come from?
 			canvas.height = window.innerHeight+4;
 			
+            /* re-get the 1:1 ratio for the app later
+            
 			//	change viewport so clip space is -1..1
 			//	keep 1:1 ratio
 			let size = Math.max( canvas.width, canvas.height );
 			gl.viewport(0, 0, size, size);
-			
+			*/
+            
 			//	force render in case there's any gaps in animation
 			//Render();
 		}
@@ -100,7 +103,8 @@
 		];
 		CanvasGeo.AddAttribute( new TAttribute("a_position", Uvs ) );
 		
-		
+        var Screen = new TScreen( canvas );
+ 		
 		function Render()
 		{
 			Time += 1.0 / 60.0;
@@ -118,8 +122,10 @@
 			'5FFFD1FF',
 			];
 			
+            
 			try
 			{
+                Screen.Bind();
 				// Draw the object given a set of 2D points, in this case a square
 				drawObject( shaderProgram, CanvasGeo, SdfTexture, HorseTexture, Time, Colours );
 			}
@@ -224,6 +230,8 @@
 		var HorseUrl = 'http://electric.horse/horse.jpg';
 		var SdfTexture = new TTexture("sdf",SdfUrl);
 		var HorseTexture = new TTexture("Horse",HorseUrl);
+      
+        var RenderTarget = new TRenderTarget("TestRenderTarget", )
 
 
 		ResizeCanvas();
@@ -426,6 +434,66 @@ var PopGl = {
             this.Load( Url );
     }
 
+    function TScreen(CanvasElement)
+    {
+        this.CanvasElement = CanvasElement;
+        
+        this.GetWidth = function()
+        {
+            return this.CanvasElement.width;
+        }
+        
+        this.GetHeight = function()
+        {
+            return this.CanvasElement.height;
+        }
+        
+        //  unbind any frame buffer
+        this.Bind = function()
+        {
+            gl.bindFramebuffer( gl.FRAMEBUFFER, null );
+            gl.viewport(0, 0, this.GetWidth(), this.GetHeight() );
+        }
+    }
+
+    function TRenderTarget(Name,Texture)
+    {
+        this.Name = Name;
+        this.FrameBuffer = null;
+        this.Texture = null;
+        
+        this.CreateFrameBuffer = function(Texture)
+        {
+            this.FrameBuffer = gl.createFrameBuffer();
+            this.Texture = Texture;
+            
+            this.Bind();
+            
+            //  attach this texture to colour output
+            const attachmentPoint = gl.COLOR_ATTACHMENT0;
+            gl.framebufferTexture2D(gl.FRAMEBUFFER, attachmentPoint, gl.TEXTURE_2D, this.Texture.Asset, level);
+        }
+        
+        //  bind for rendering
+        this.Bind = function()
+        {
+            gl.bindFramebuffer( gl.FRAMEBUFFER, this.FrameBuffer );
+            gl.viewport(0, 0, this.GetWidth(), this.GetHeight() );
+        }
+        
+        this.GetWidth = function()
+        {
+            return this.Texture.GetWidth();
+        }
+        
+        this.GetHeight = function()
+        {
+            return this.Texture.GetHeight();
+        }
+        
+        if ( Texture !== undefined )
+            this.CreateFrameBuffer( Texture );
+    }
 
     function BindTexture(Texture,Program,Uniform,TextureIndex)
     {
