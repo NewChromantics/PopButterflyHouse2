@@ -117,13 +117,26 @@ void main()
 var CloudVertexShader = `
 attribute vec3 PositionXYIndex;
 varying vec2 uv;
+uniform sampler2D PositionTexture;
+uniform int PositionTexture_Width;
+
 void main()
 {
+	float Index = PositionXYIndex.z;
+	float TexelU = 1.0 / float(PositionTexture_Width);
+	float PositionU = Index * TexelU;
+	//	texel offset, read from center of pixel, not edge
+	PositionU += TexelU * 0.1;
+	vec2 PositionUv = vec2( PositionU, 0 );
+	vec4 Pos4 = texture2D( PositionTexture, PositionUv );
+	
 	vec2 Pos2 = mix( vec2(0,0), vec2(1,1), PositionXYIndex.xy );
 	uv = vec2( Pos2.x, Pos2.y);
-	float Index = PositionXYIndex.z;
-	Pos2.x += Index * 2.0;
-	Pos2 /= 3.0;
+	Pos2 += Pos4.xy;
+	//float Index = PositionXYIndex.z;
+	//Pos2.x += Index * 2.0;
+	Pos2 -= vec2(10,0);
+	Pos2 /= 100.0;
 	gl_Position = vec4(Pos2, 0.0, 1.0);
 }
 `;
@@ -231,6 +244,42 @@ function SetupHorseRender(Screen,LayerTexture)
 	return Render;
 }
 
+function GetNextPowerOf2(Number)
+{
+	const MaxShift = 31;
+	for ( let Shift=0;	Shift<MaxShift;	Shift++ )
+	{
+		let Pow = 2<<Shift;
+		if ( Number <= Pow )
+			return Pow;
+	}
+	throw "GetNextPowerOf2("+Number+") exceeds 2<<"+MaxShift;
+}
+
+function AllocPositionTexture(Count)
+{
+	//	round to pow2
+	Count = GetNextPowerOf2(Count);
+	
+	let Height = 1;
+	let Texture = new TTexture("Positions",Count,Height);
+	let Pixels = new Array(Count*4*Height);
+	for ( let p=0;	p<Count;	p++ )
+	{
+		let Spacing = 2.1;
+		let GridSize = 50;
+		let x = p % GridSize;
+		let y = (p-x) / GridSize;
+		Pixels[ (p*4)+0 ] = x * Spacing;
+		Pixels[ (p*4)+1 ] = y * Spacing;
+		Pixels[ (p*4)+2 ] = 0;
+		Pixels[ (p*4)+3 ] = 1;
+	}
+	let PixelData = new Float32Array(Pixels);
+	Texture.WritePixels( Count, Height, PixelData, gl.NEAREST );
+	return Texture;
+}
+
 function main()
 {
 	var Canvas = document.getElementById('glcanvas');
@@ -259,14 +308,18 @@ function main()
 		Shader.SetUniform( 'ColourTexture', LayerTexture );
 	};
 
-	let TempTexture = new TTexture("Plain",1,1);
-	TempTexture.WritePixels( 1, 1, AllocPixelBuffer(1,[0,255,0,255]) );
 
-	let DumbQuadGeo = CreateDumbQuadGeometry(10);
+	let ParticleCount = 2000;
+	let PositionTexture = AllocPositionTexture(ParticleCount);
+	
+	let DumbQuadGeo = CreateDumbQuadGeometry(ParticleCount);
 	let DumbQuadShader = new TShader("Cloud",CloudVertexShader,CloudFragShader);
 	let SetDumbQuadUniforms = function(Shader)
 	{
-		Shader.SetUniform( 'ColourTexture', LayerTexture );
+		//Shader.SetUniform( 'ColourTexture', LayerTexture );
+		Shader.SetUniform( 'ColourTexture', PositionTexture );
+		Shader.SetUniform( 'PositionTexture', PositionTexture );
+		Shader.SetUniformInt( 'PositionTexture_Width', PositionTexture.GetWidth() );
 	};
 
 	let ClearColour = HexToColour4( '33ccffff' );
