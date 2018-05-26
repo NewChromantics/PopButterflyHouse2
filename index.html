@@ -113,7 +113,73 @@ void main()
 }
 `;
 
+
+var CloudVertexShader = `
+attribute vec3 PositionXYIndex;
+varying vec2 uv;
+void main()
+{
+	vec2 Pos2 = mix( vec2(0,0), vec2(1,1), PositionXYIndex.xy );
+	uv = vec2( Pos2.x, Pos2.y);
+	float Index = PositionXYIndex.z;
+	Pos2.x += Index * 2.0;
+	Pos2 /= 3.0;
+	gl_Position = vec4(Pos2, 0.0, 1.0);
+}
+`;
+
+var CloudFragShader = `
+precision highp float;
+varying vec2 uv;
+uniform sampler2D ColourTexture;
+void main()
+{
+	if ( uv.x < 0.0 )
+		gl_FragColor = vec4(0,0,1,1);
+	else if ( uv.y < 0.0 )
+		gl_FragColor = vec4(0,0,1,1);
+	else if ( uv.x > 1.0 )
+		gl_FragColor = vec4(0,0,1,1);
+	else if ( uv.y > 1.0 )
+		gl_FragColor = vec4(0,0,1,1);
+	else
+	{
+		//	gl_FragColor = texture2D( ColourTexture, vec2( uv.x, 1.0-uv.y) );
+		gl_FragColor = texture2D( ColourTexture, uv );
+		//gl_FragColor = vec4( uv, 0.0, 1.0 );
+	}
+}
+`;
+
+
 window.onload = main;
+
+function CreateDumbQuadGeometry(QuadCount)
+{
+	let Positions = [];
+	
+	let AddTriangle = function(Pos0,Pos1,Pos2)
+	{
+		Positions.push( Pos0 );
+		Positions.push( Pos1 );
+		Positions.push( Pos2 );
+	};
+	let AddQuad = function(Pos0,Pos1,Pos2,Pos3)
+	{
+		AddTriangle( Pos2, Pos3, Pos0 );
+		AddTriangle( Pos0, Pos1, Pos2 );
+	};
+
+	for ( let q=0;	q<QuadCount;	q++ )
+	{
+		AddQuad( new float3(0,0,q), new float3(1,0,q), new float3(1,1,q), new float3(0,1,q) );
+	}
+	
+	let Geo = new TGeometry("Quads x" + QuadCount, gl.TRIANGLES );
+	Geo.AddAttribute( new TAttribute("PositionXYIndex", Positions ) );
+	return Geo;
+}
+
 
 //	returns render function
 function SetupHorseRender(Screen,LayerTexture)
@@ -184,7 +250,7 @@ function main()
 	ResizeCanvas();
 
 
-	let LayerTexture = new TTexture( "Layer", Screen.GetWidth(), Screen.GetHeight() );
+	let LayerTexture = new TTexture( "Layer", 1024, 1024 );
 	let HorseRender = SetupHorseRender( Screen, LayerTexture );
 	
 	let CopyBlitter = new TBlitter("CopyBlitter", FragShader_Copy );
@@ -193,8 +259,17 @@ function main()
 		Shader.SetUniform( 'ColourTexture', LayerTexture );
 	};
 
+	let TempTexture = new TTexture("Plain",1,1);
+	TempTexture.WritePixels( 1, 1, AllocPixelBuffer(1,[0,255,0,255]) );
 
-	let ClearColour = new float4(0,0,0,1);
+	let DumbQuadGeo = CreateDumbQuadGeometry(10);
+	let DumbQuadShader = new TShader("Cloud",CloudVertexShader,CloudFragShader);
+	let SetDumbQuadUniforms = function(Shader)
+	{
+		Shader.SetUniform( 'ColourTexture', LayerTexture );
+	};
+
+	let ClearColour = HexToColour4( '33ccffff' );
 
 	function Render()
 	{
@@ -202,7 +277,9 @@ function main()
 		try
 		{
 			HorseRender();
-			CopyBlitter.Render( Screen, SetCopyUniforms );
+			Screen.Bind();
+			Context.Clear(ClearColour);
+			RenderGeo( DumbQuadShader, DumbQuadGeo, SetDumbQuadUniforms );
 		}
 		catch(Exception)
 		{
