@@ -46,18 +46,18 @@ varying vec2 uv;
 uniform sampler2D SdfTexture;
 uniform sampler2D HorseTexture;
 uniform int ColourCount;
-uniform vec3 Colour0;
-uniform vec3 Colour1;
-uniform vec3 Colour2;
-uniform vec3 Colour3;
-uniform vec3 Colour4;
-uniform vec3 Colour5;
-uniform vec3 Colour6;
-uniform vec3 Colour7;
-uniform vec3 Colour8;
-uniform vec3 Colour9;
+uniform vec4 Colour0;
+uniform vec4 Colour1;
+uniform vec4 Colour2;
+uniform vec4 Colour3;
+uniform vec4 Colour4;
+uniform vec4 Colour5;
+uniform vec4 Colour6;
+uniform vec4 Colour7;
+uniform vec4 Colour8;
+uniform vec4 Colour9;
 
-vec3 GetColour(int Index)
+vec4 GetColour(int Index)
 {
 	if ( Index == 0 )	return Colour0;
 	if ( Index == 1 )	return Colour1;
@@ -70,9 +70,9 @@ vec3 GetColour(int Index)
 	if ( Index == 8 )	return Colour8;
 	if ( Index == 9 )	return Colour9;
 	if ( Index < 0 )
-	return vec3(1,0,1);
+		return vec4(1,0,1,1);
 	else
-	return vec3(0,1,0);
+		return vec4(0,1,0,1);
 }
 
 void main()
@@ -96,7 +96,7 @@ void main()
 		Distance *= float(StripeCount);
 		float Stripef = mod( Distance, float(ColourCount-1) );
 		int Stripe = int(Stripef);
-		gl_FragColor.xyz = GetColour( Stripe );
+		gl_FragColor.xyz = GetColour( Stripe ).xyz;
 	}
 }
 `;
@@ -173,27 +173,31 @@ void main()
       
         //var RenderTarget = new TRenderTarget("TestRenderTarget", )
 
+		let ClearColour = new float4(0,0,0,1);
+
 		function Render()
 		{
 			Time += 1.0 / 60.0;
 			
 			var Colours =
 			[
-			 'ADFF5FFF',
-			 'FFF15FFF',
-			 'FFB25FFF',
-			 'FF5F83FF',
-			 'FF5FFFFF',
-			 'C15FFFFF',
-			 '865FFFFF',
-			 '5F8EFFFF',
-			 '5FD1FFFF',
-			 '5FFFD1FF'
+			 HexToColour4('ADFF5FFF'),
+			 HexToColour4('FFF15FFF'),
+			 HexToColour4('FFB25FFF'),
+			 HexToColour4('FF5F83FF'),
+			 HexToColour4('FF5FFFFF'),
+			 HexToColour4('C15FFFFF'),
+			 HexToColour4('865FFFFF'),
+			 HexToColour4('5F8EFFFF'),
+			 HexToColour4('5FD1FFFF'),
+			 HexToColour4('5FFFD1FF')
 			];
 			 
 			 try
 			 {
 				 Screen.Bind();
+				 Context.Clear( ClearColour );
+				 
 				 // Draw the object given a set of 2D points, in this case a square
 				 drawObject( HorseSdfShader, CanvasGeo, SdfTexture, HorseTexture, Time, Colours );
 			 }
@@ -219,31 +223,18 @@ void main()
 	{
 		Shader.Bind();
 		
-        BindTexture( SdfTexture, Shader, 'SdfTexture', 0 );
-        BindTexture( HorseTexture, Shader, 'HorseTexture', 1 );
-        
-		let TimeUniform = gl.getUniformLocation( Shader.Program, "Time");
-
-
-		let ColourCountUniform = gl.getUniformLocation( Shader.Program, "ColourCount");
-		gl.uniform1i(ColourCountUniform, Colours.length);
+		Shader.SetUniform( 'HorseTexture', HorseTexture );
+		Shader.SetUniform( 'SdfTexture', SdfTexture );
+		Shader.SetUniformFloat('Time', Time);
+		Shader.SetUniformInt( 'ColourCount', Colours.length );
 		
-		// Set black as the background color
-		gl.clearColor(0, 0, 0, 1); // defaults to white (1,1,1)
-		// Manually clear the canvas.
-		gl.clear(gl.COLOR_BUFFER_BIT);
-
-
-
-
-
 		//	gr; can't use less than with this xml html
 		for ( let i=0;	i<Colours.length;	i++ )
 		{
-			let ColourUniform = gl.getUniformLocation( Shader.Program, "Colour" + i );
-			gl.uniform3f(ColourUniform, GetRed(Colours[i]), GetGreen(Colours[i]), GetBlue(Colours[i]) );
+			let ColourUniform = "Colour" + i;
+			Shader.SetUniform( ColourUniform, Colours[i] );
 		}
-		gl.uniform1f(TimeUniform, Time);
+		
 		let PositionUniform = gl.getAttribLocation( Shader.Program, "a_position");
 
 

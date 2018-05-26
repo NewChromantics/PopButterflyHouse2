@@ -16,6 +16,21 @@ function GetBlue(Colour)
 	return Value / 255;
 }
 
+function GetAlpha(Colour)
+{
+	let Value = parseInt( Colour.substring(6,8), 16);
+	return Value / 255;
+}
+
+function HexToColour4(Hex)
+{
+	let Colour4 = new float4(0,0,0,0);
+	Colour4.x = GetRed( Hex );
+	Colour4.y = GetGreen( Hex );
+	Colour4.z = GetBlue( Hex );
+	Colour4.w = GetAlpha( Hex );
+	return Colour4;
+}
 
 //	namespace
 var PopGl =
@@ -43,6 +58,15 @@ function TContext(CanvasElement)
 	if ( !this.Context )
 		throw "Failed to initialise webgl";
 
+	this.Clear = function(Colour4)
+	{
+		let r = Colour4.x;
+		let g = Colour4.y;
+		let b = Colour4.z;
+		let a = Colour4.w;
+		gl.clearColor( r, g, b, a );
+		gl.clear(gl.COLOR_BUFFER_BIT);
+	}
 	
 	//	setup global var
 	gl = this.Context;
@@ -300,25 +324,6 @@ function TRenderTarget(Name,Texture)
 		this.CreateFrameBuffer( Texture );
 }
 
-function BindTexture(Texture,Shader,Uniform,TextureIndex)
-{
-	let UniformPtr = gl.getUniformLocation( Shader.Program, Uniform );
-	//  https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API/Tutorial/Using_textures_in_WebGL
-	//  WebGL provides a minimum of 8 texture units;
-	let GlTextureNames = [ gl.TEXTURE0, gl.TEXTURE1, gl.TEXTURE2, gl.TEXTURE3, gl.TEXTURE4, gl.TEXTURE5, gl.TEXTURE6, gl.TEXTURE7 ];
-
-	//	setup textures
-	gl.activeTexture( GlTextureNames[TextureIndex] );
-	try
-	{
-		gl.bindTexture(gl.TEXTURE_2D, Texture.Asset);
-	}
-	catch
-	{
-		//  todo: bind "invalid" texture
-	}
-	gl.uniform1i(UniformPtr, TextureIndex );
-}
 
 
 function TShader(Name,VertShaderSource,FragShaderSource)
@@ -327,6 +332,7 @@ function TShader(Name,VertShaderSource,FragShaderSource)
 	this.VertShader = null;
 	this.FragShader = null;
 	this.Program = null;
+	this.CurrentTextureIndex = 0;
 	
 	this.CompileShader = function(Type,Source)
 	{
@@ -362,7 +368,75 @@ function TShader(Name,VertShaderSource,FragShaderSource)
 	this.Bind = function()
 	{
 		gl.useProgram( this.Program );
+		
+		//	reset texture counter everytime we bind
+		this.CurrentTextureIndex = 0;
 	}
+	
+	//	gr: can't tell the difference between int and float, so err that wont work
+	this.SetUniform = function(Uniform,Value)
+	{
+		if ( Value instanceof TTexture )		this.SetUniformTexture( Uniform, Value, this.CurrentTextureIndex++ );
+		else if ( Value instanceof float2 )		this.SetUniformFloat2( Uniform, Value );
+		else if ( Value instanceof float3 )		this.SetUniformFloat3( Uniform, Value );
+		else if ( Value instanceof float4 )		this.SetUniformFloat4( Uniform, Value );
+		else if ( typeof Value === 'number' )	this.SetUniformInt( Uniform, Value );
+		else
+		{
+			throw "Failed to set uniform " +Uniform + " to " + ( typeof Value );
+		}
+	}
+	
+	this.SetUniformTexture = function(Uniform,Texture,TextureIndex)
+	{
+		let UniformPtr = gl.getUniformLocation( this.Program, Uniform );
+		//  https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API/Tutorial/Using_textures_in_WebGL
+		//  WebGL provides a minimum of 8 texture units;
+		let GlTextureNames = [ gl.TEXTURE0, gl.TEXTURE1, gl.TEXTURE2, gl.TEXTURE3, gl.TEXTURE4, gl.TEXTURE5, gl.TEXTURE6, gl.TEXTURE7 ];
+		
+		//	setup textures
+		gl.activeTexture( GlTextureNames[TextureIndex] );
+		try
+		{
+			gl.bindTexture(gl.TEXTURE_2D, Texture.Asset);
+		}
+		catch
+		{
+			//  todo: bind "invalid" texture
+		}
+		gl.uniform1i(UniformPtr, TextureIndex );
+	}
+	
+	this.SetUniformInt = function(Uniform,Value)
+	{
+		let UniformPtr = gl.getUniformLocation( this.Program, Uniform);
+		gl.uniform1i( UniformPtr, Value );
+	}
+	
+	this.SetUniformFloat = function(Uniform,Value)
+	{
+		let UniformPtr = gl.getUniformLocation( this.Program, Uniform);
+		gl.uniform1f( UniformPtr, Value );
+	}
+	
+	this.SetUniformFloat2 = function(Uniform,Value)
+	{
+		let UniformPtr = gl.getUniformLocation( this.Program, Uniform);
+		gl.uniform2f( UniformPtr, Value.x, Value.y );
+	}
+	
+	this.SetUniformFloat3 = function(Uniform,Value)
+	{
+		let UniformPtr = gl.getUniformLocation( this.Program, Uniform);
+		gl.uniform3f( UniformPtr, Value.x, Value.y, Value.z );
+	}
+	
+	this.SetUniformFloat4 = function(Uniform,Value)
+	{
+		let UniformPtr = gl.getUniformLocation( this.Program, Uniform);
+		gl.uniform4f( UniformPtr, Value.x, Value.y, Value.z, Value.w );
+	}
+
 	
 	this.FragShader = this.CompileShader( gl.FRAGMENT_SHADER, FragShaderSource );
 	this.VertShader = this.CompileShader( gl.VERTEX_SHADER, VertShaderSource );
