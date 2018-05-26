@@ -18,8 +18,8 @@
 	</style>
 </head>
 <body>
-	<script src="PopGl.js"></script>
-	<script src="PopBlitter.js"></script>
+	<script src="PopWebgl/PopGl.js"></script>
+	<script src="PopWebgl/PopBlitter.js"></script>
 	<canvas id="glcanvas" width="100" height="100">
 		Your browser doesn't appear to support the HTML5 <code>&lt;canvas&gt;</code> element.
 	</canvas>
@@ -109,7 +109,7 @@ varying vec2 uv;
 uniform sampler2D ColourTexture;
 void main()
 {
-	gl_FragColor = texture2D( ColourTexture, uv );
+	gl_FragColor = texture2D( ColourTexture, vec2( uv.x, 1.0-uv.y) );
 }
 `;
 
@@ -152,11 +152,7 @@ void main()
 
 		var Time = 0;
 		
-		PopGlBlitter.Init();
-		let CanvasGeo = PopGlBlitter.BlitGeometry;
-		
-		
-		let LayerTexture = new TTexture( "Layer", 100, 100 );
+		let LayerTexture = new TTexture( "Layer", Screen.GetWidth(), Screen.GetHeight() );
 		let LayerTarget = new TRenderTarget( "Layer", LayerTexture );
 		
 		let HorseSdfShader = new TShader("Sdf", VertexShader, FragShader_SdfHorse );
@@ -165,28 +161,27 @@ void main()
 		let HorseUrl = 'http://electric.horse/horse.jpg';
 		let SdfTexture = new TTexture("sdf",SdfUrl);
 		let HorseTexture = new TTexture("Horse",HorseUrl);
-      
-        //var RenderTarget = new TRenderTarget("TestRenderTarget", )
-
+		
 		let ClearColour = new float4(0,0,0,1);
 
 		var Colours =
 		[
-		 HexToColour4('ADFF5FFF'),
-		 HexToColour4('FFF15FFF'),
-		 HexToColour4('FFB25FFF'),
-		 HexToColour4('FF5F83FF'),
-		 HexToColour4('FF5FFFFF'),
-		 HexToColour4('C15FFFFF'),
-		 HexToColour4('865FFFFF'),
-		 HexToColour4('5F8EFFFF'),
-		 HexToColour4('5FD1FFFF'),
-		 HexToColour4('5FFFD1FF')
+		HexToColour4('ADFF5FFF'),
+		HexToColour4('FFF15FFF'),
+		HexToColour4('FFB25FFF'),
+		HexToColour4('FF5F83FF'),
+		HexToColour4('FF5FFFFF'),
+		HexToColour4('C15FFFFF'),
+		HexToColour4('865FFFFF'),
+		HexToColour4('5F8EFFFF'),
+		HexToColour4('5FD1FFFF'),
+		HexToColour4('5FFFD1FF')
 		];
 		 
 		let HorseBlitter = new TBlitter("HorseBlitter", FragShader_SdfHorse );
+		let CopyBlitter = new TBlitter("CopyBlitter", FragShader_Copy );
 
-		let SetUniforms = function(Shader,Geo)
+		let SetHorseUniforms = function(Shader,Geo)
 		{
 			Shader.SetUniform( 'HorseTexture', HorseTexture );
 			Shader.SetUniform( 'SdfTexture', SdfTexture );
@@ -200,32 +195,31 @@ void main()
 				Shader.SetUniform( ColourUniform, Colours[i] );
 			}
 		};
+		
+		let SetCopyUniforms = function(Shader,Geo)
+		{
+			Shader.SetUniform( 'ColourTexture', LayerTexture );
+		};
 
 		function Render()
 		{
 			Time += 1.0 / 60.0;
-						
-			 try
-			 {
-				 HorseBlitter.Render( Screen, SetUniforms );
-				 /*
-				 Screen.Bind();
-				 Context.Clear( ClearColour );
-				 
-				 // Draw the object given a set of 2D points, in this case a square
-				 drawObject( HorseSdfShader, CanvasGeo, SdfTexture, HorseTexture, Time, Colours );
-				  */
-			 }
-			 catch(Exception)
-			 {
-				 //	rethrow
-				 throw Exception;
-			 }
-			 finally
-			 {
-				 //	always request redraw
-				 requestAnimationFrame( Render );
-			 }
+			
+			try
+			{
+				HorseBlitter.Render( LayerTarget, SetHorseUniforms );
+				CopyBlitter.Render( Screen, SetCopyUniforms );
+			}
+			catch(Exception)
+			{
+				//	rethrow
+				throw Exception;
+			}
+			finally
+			{
+				//	always request redraw
+				requestAnimationFrame( Render );
+			}
 		}
 
 		Render();
