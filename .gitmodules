@@ -1,0 +1,3 @@
+[submodule "PopWebgl"]
+	path = PopWebgl
+	url = https://github.com/NewChromantics/PopWebgl.git
