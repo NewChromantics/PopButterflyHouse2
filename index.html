@@ -113,111 +113,111 @@ void main()
 }
 `;
 
-	window.onload = main;
+window.onload = main;
+
+//	returns render function
+function SetupHorseRender(Screen,LayerTexture)
+{
+	let Time = 0;
+	let LayerTarget = new TRenderTarget( "Layer", LayerTexture );
+	let HorseSdfShader = new TShader("Sdf", VertexShader, FragShader_SdfHorse );
+	let SdfUrl = 'http://electric.horse/horse_sdf.png';
+	let HorseUrl = 'http://electric.horse/horse.jpg';
+	let SdfTexture = new TTexture("sdf",SdfUrl);
+	let HorseTexture = new TTexture("Horse",HorseUrl);
+
+	var Colours =
+	[
+	HexToColour4('ADFF5FFF'),
+	HexToColour4('FFF15FFF'),
+	HexToColour4('FFB25FFF'),
+	HexToColour4('FF5F83FF'),
+	HexToColour4('FF5FFFFF'),
+	HexToColour4('C15FFFFF'),
+	HexToColour4('865FFFFF'),
+	HexToColour4('5F8EFFFF'),
+	HexToColour4('5FD1FFFF'),
+	HexToColour4('5FFFD1FF')
+	];
+
+	let HorseBlitter = new TBlitter("HorseBlitter", FragShader_SdfHorse );
+
+	let SetHorseUniforms = function(Shader,Geo)
+	{
+		Shader.SetUniform( 'HorseTexture', HorseTexture );
+		Shader.SetUniform( 'SdfTexture', SdfTexture );
+		Shader.SetUniformFloat('Time', Time);
+		Shader.SetUniformInt( 'ColourCount', Colours.length );
+
+		//	gr; can't use less than with this xml html
+		for ( let i=0;	i<Colours.length;	i++ )
+		{
+			let ColourUniform = "Colour" + i;
+			Shader.SetUniform( ColourUniform, Colours[i] );
+		}
+	};
+
+	let Render = function()
+	{
+		Time += 1.0 / 60.0;
+		HorseBlitter.Render( LayerTarget, SetHorseUniforms );
+	};
+	return Render;
+}
+
+function main()
+{
+	var Canvas = document.getElementById('glcanvas');
+	var Context = new TContext( Canvas );
+	var Screen = new TScreen( Canvas );
+
+	var ResizeCanvas = function()
+	{
+		console.log("ResizeCanvas");
+		Canvas.width = window.innerWidth;
+		//	gr: where did this border come from?
+		Canvas.height = window.innerHeight+4;
+	}
+
+	// resize the canvas to fill browser window dynamically
+	window.addEventListener('resize', ResizeCanvas, false);
+	ResizeCanvas();
+
+
+	let LayerTexture = new TTexture( "Layer", Screen.GetWidth(), Screen.GetHeight() );
+	let HorseRender = SetupHorseRender( Screen, LayerTexture );
 	
-	//	returns render function
-	function SetupHorseRender(Screen,LayerTexture)
+	let CopyBlitter = new TBlitter("CopyBlitter", FragShader_Copy );
+	let SetCopyUniforms = function(Shader,Geo)
 	{
-		let Time = 0;
-		let LayerTarget = new TRenderTarget( "Layer", LayerTexture );
-		let HorseSdfShader = new TShader("Sdf", VertexShader, FragShader_SdfHorse );
-		let SdfUrl = 'http://electric.horse/horse_sdf.png';
-		let HorseUrl = 'http://electric.horse/horse.jpg';
-		let SdfTexture = new TTexture("sdf",SdfUrl);
-		let HorseTexture = new TTexture("Horse",HorseUrl);
+		Shader.SetUniform( 'ColourTexture', LayerTexture );
+	};
 
-		var Colours =
-		[
-		HexToColour4('ADFF5FFF'),
-		HexToColour4('FFF15FFF'),
-		HexToColour4('FFB25FFF'),
-		HexToColour4('FF5F83FF'),
-		HexToColour4('FF5FFFFF'),
-		HexToColour4('C15FFFFF'),
-		HexToColour4('865FFFFF'),
-		HexToColour4('5F8EFFFF'),
-		HexToColour4('5FD1FFFF'),
-		HexToColour4('5FFFD1FF')
-		];
 
-		let HorseBlitter = new TBlitter("HorseBlitter", FragShader_SdfHorse );
+	let ClearColour = new float4(0,0,0,1);
 
-		let SetHorseUniforms = function(Shader,Geo)
-		{
-			Shader.SetUniform( 'HorseTexture', HorseTexture );
-			Shader.SetUniform( 'SdfTexture', SdfTexture );
-			Shader.SetUniformFloat('Time', Time);
-			Shader.SetUniformInt( 'ColourCount', Colours.length );
-
-			//	gr; can't use less than with this xml html
-			for ( let i=0;	i<Colours.length;	i++ )
-			{
-				let ColourUniform = "Colour" + i;
-				Shader.SetUniform( ColourUniform, Colours[i] );
-			}
-		};
-
-		let Render = function()
-		{
-			Time += 1.0 / 60.0;
-			HorseBlitter.Render( LayerTarget, SetHorseUniforms );
-		};
-		return Render;
-	}
-
-	function main()
+	function Render()
 	{
-		var Canvas = document.getElementById('glcanvas');
-		var Context = new TContext( Canvas );
-		var Screen = new TScreen( Canvas );
-
-		var ResizeCanvas = function()
-		{
-			console.log("ResizeCanvas");
-			Canvas.width = window.innerWidth;
-			//	gr: where did this border come from?
-			Canvas.height = window.innerHeight+4;
-		}
-
-		// resize the canvas to fill browser window dynamically
-		window.addEventListener('resize', ResizeCanvas, false);
-		ResizeCanvas();
-
-
-		let LayerTexture = new TTexture( "Layer", Screen.GetWidth(), Screen.GetHeight() );
-		let HorseRender = SetupHorseRender( Screen, LayerTexture );
 		
-		let ClearColour = new float4(0,0,0,1);
-
-		let CopyBlitter = new TBlitter("CopyBlitter", FragShader_Copy );
-
-		let SetCopyUniforms = function(Shader,Geo)
+		try
 		{
-			Shader.SetUniform( 'ColourTexture', LayerTexture );
-		};
-
-		function Render()
-		{	
-			
-			try
-			{
-				HorseRender();
-				CopyBlitter.Render( Screen, SetCopyUniforms );
-			}
-			catch(Exception)
-			{
-				//	rethrow
-				throw Exception;
-			}
-			finally
-			{
-				//	always request redraw
-				requestAnimationFrame( Render );
-			}
+			HorseRender();
+			CopyBlitter.Render( Screen, SetCopyUniforms );
 		}
-
-		Render();
+		catch(Exception)
+		{
+			//	rethrow
+			throw Exception;
+		}
+		finally
+		{
+			//	always request redraw
+			requestAnimationFrame( Render );
+		}
 	}
+
+	Render();
+}
 
 
 
