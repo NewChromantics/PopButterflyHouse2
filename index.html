@@ -19,6 +19,7 @@
 </head>
 <body>
 	<script src="PopGl.js"></script>
+	<script src="PopBlitter.js"></script>
 	<canvas id="glcanvas" width="100" height="100">
 		Your browser doesn't appear to support the HTML5 <code>&lt;canvas&gt;</code> element.
 	</canvas>
@@ -108,7 +109,7 @@ varying vec2 uv;
 uniform sampler2D ColourTexture;
 void main()
 {
-	gl_FragColor = texture2D( SdfTexture, uv );
+	gl_FragColor = texture2D( ColourTexture, uv );
 }
 `;
 
@@ -151,14 +152,8 @@ void main()
 
 		var Time = 0;
 		
-		let CanvasGeo = new TGeometry("Canvas");
-		let Uvs = [
-			new float2( 0, 0 ),
-			new float2( 1, 0 ),
-			new float2( 0, 1 ),
-			new float2( 1, 1 ),
-		];
-		CanvasGeo.AddAttribute( new TAttribute("a_position", Uvs ) );
+		PopGlBlitter.Init();
+		let CanvasGeo = PopGlBlitter.BlitGeometry;
 		
 		
 		let LayerTexture = new TTexture( "Layer", 100, 100 );
@@ -166,40 +161,60 @@ void main()
 		
 		let HorseSdfShader = new TShader("Sdf", VertexShader, FragShader_SdfHorse );
 		
-		var SdfUrl = 'http://electric.horse/horse_sdf.png';
-		var HorseUrl = 'http://electric.horse/horse.jpg';
-		var SdfTexture = new TTexture("sdf",SdfUrl);
-		var HorseTexture = new TTexture("Horse",HorseUrl);
+		let SdfUrl = 'http://electric.horse/horse_sdf.png';
+		let HorseUrl = 'http://electric.horse/horse.jpg';
+		let SdfTexture = new TTexture("sdf",SdfUrl);
+		let HorseTexture = new TTexture("Horse",HorseUrl);
       
         //var RenderTarget = new TRenderTarget("TestRenderTarget", )
 
 		let ClearColour = new float4(0,0,0,1);
 
+		var Colours =
+		[
+		 HexToColour4('ADFF5FFF'),
+		 HexToColour4('FFF15FFF'),
+		 HexToColour4('FFB25FFF'),
+		 HexToColour4('FF5F83FF'),
+		 HexToColour4('FF5FFFFF'),
+		 HexToColour4('C15FFFFF'),
+		 HexToColour4('865FFFFF'),
+		 HexToColour4('5F8EFFFF'),
+		 HexToColour4('5FD1FFFF'),
+		 HexToColour4('5FFFD1FF')
+		];
+		 
+		let HorseBlitter = new TBlitter("HorseBlitter", FragShader_SdfHorse );
+
+		let SetUniforms = function(Shader,Geo)
+		{
+			Shader.SetUniform( 'HorseTexture', HorseTexture );
+			Shader.SetUniform( 'SdfTexture', SdfTexture );
+			Shader.SetUniformFloat('Time', Time);
+			Shader.SetUniformInt( 'ColourCount', Colours.length );
+			
+			//	gr; can't use less than with this xml html
+			for ( let i=0;	i<Colours.length;	i++ )
+			{
+				let ColourUniform = "Colour" + i;
+				Shader.SetUniform( ColourUniform, Colours[i] );
+			}
+		};
+
 		function Render()
 		{
 			Time += 1.0 / 60.0;
-			
-			var Colours =
-			[
-			 HexToColour4('ADFF5FFF'),
-			 HexToColour4('FFF15FFF'),
-			 HexToColour4('FFB25FFF'),
-			 HexToColour4('FF5F83FF'),
-			 HexToColour4('FF5FFFFF'),
-			 HexToColour4('C15FFFFF'),
-			 HexToColour4('865FFFFF'),
-			 HexToColour4('5F8EFFFF'),
-			 HexToColour4('5FD1FFFF'),
-			 HexToColour4('5FFFD1FF')
-			];
-			 
+						
 			 try
 			 {
+				 HorseBlitter.Render( Screen, SetUniforms );
+				 /*
 				 Screen.Bind();
 				 Context.Clear( ClearColour );
 				 
 				 // Draw the object given a set of 2D points, in this case a square
 				 drawObject( HorseSdfShader, CanvasGeo, SdfTexture, HorseTexture, Time, Colours );
+				  */
 			 }
 			 catch(Exception)
 			 {
@@ -216,52 +231,6 @@ void main()
 		Render();
 	}
 
-
-
-	// Draw an object given a shader program and a list of vertices
-	function drawObject(Shader, Geo, SdfTexture, HorseTexture, Time, Colours )
-	{
-		Shader.Bind();
-		
-		Shader.SetUniform( 'HorseTexture', HorseTexture );
-		Shader.SetUniform( 'SdfTexture', SdfTexture );
-		Shader.SetUniformFloat('Time', Time);
-		Shader.SetUniformInt( 'ColourCount', Colours.length );
-		
-		//	gr; can't use less than with this xml html
-		for ( let i=0;	i<Colours.length;	i++ )
-		{
-			let ColourUniform = "Colour" + i;
-			Shader.SetUniform( ColourUniform, Colours[i] );
-		}
-		
-		let PositionUniform = gl.getAttribLocation( Shader.Program, "a_position");
-
-
-		//	setup buffer
-		if ( Geo.Buffer == null )
-		{
-			//Geo.CreateBuffer();
-			Geo.Buffer = gl.createBuffer();
-			gl.bindBuffer( gl.ARRAY_BUFFER, Geo.Buffer );
-			
-			//	all interleaved vertex data
-			let Attrib = Geo.Attributes[0];
-			//	gr: need to convert to array of floats...
-			let VertexData = Geo.GetVertexData();
-			gl.bufferData( gl.ARRAY_BUFFER, VertexData, gl.STATIC_DRAW );
-			gl.enableVertexAttribArray( PositionUniform );
-			let Normalised = false;
-			let StrideBytes = 0;
-			let OffsetBytes = 0;
-			gl.vertexAttribPointer( PositionUniform, Attrib.Size, Attrib.Type, Normalised, StrideBytes, OffsetBytes );
-			Geo.VertexCount = Attrib.Data.length;
-		}
-
-		gl.bindBuffer( gl.ARRAY_BUFFER, Geo.Buffer );
-		gl.enableVertexAttribArray( PositionUniform );
-		gl.drawArrays( gl.TRIANGLE_STRIP, 0, Geo.VertexCount );
-	}
 
 
 

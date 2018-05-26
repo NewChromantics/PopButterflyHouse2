@@ -42,7 +42,8 @@ var PopGl =
 		if ( Type instanceof float3 ) return { Type:gl.FLOAT, Size:3 };
 		if ( Type instanceof float4 ) return { Type:gl.FLOAT, Size:4 };
 		throw "Unhandled type " + Typename;
-	}
+	},
+	
 };
 
 //	global that needs some refactor
