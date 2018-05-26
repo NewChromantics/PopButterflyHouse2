@@ -114,55 +114,17 @@ void main()
 `;
 
 	window.onload = main;
-
-	function main()
+	
+	//	returns render function
+	function SetupHorseRender(Screen,LayerTexture)
 	{
-		var Canvas = document.getElementById('glcanvas');
-		var Context = new TContext( Canvas );
-		var Screen = new TScreen( Canvas );
-
-		var ResizeCanvas = function()
-		{
-			console.log("ResizeCanvas");
-			Canvas.width = window.innerWidth;
-			//	gr: where did this border come from?
-			Canvas.height = window.innerHeight+4;
-			
-			/* re-get the 1:1 ratio for the app later
-			 
-			 //	change viewport so clip space is -1..1
-			 //	keep 1:1 ratio
-			 let size = Math.max( canvas.width, canvas.height );
-			 gl.viewport(0, 0, size, size);
-			 */
-			
-			//	force render in case there's any gaps in animation
-			//Render();
-		}
-
-		// resize the canvas to fill browser window dynamically
-		window.addEventListener('resize', ResizeCanvas, false);
-		ResizeCanvas();
-
-
-
-
-
-
-
-		var Time = 0;
-		
-		let LayerTexture = new TTexture( "Layer", Screen.GetWidth(), Screen.GetHeight() );
+		let Time = 0;
 		let LayerTarget = new TRenderTarget( "Layer", LayerTexture );
-		
 		let HorseSdfShader = new TShader("Sdf", VertexShader, FragShader_SdfHorse );
-		
 		let SdfUrl = 'http://electric.horse/horse_sdf.png';
 		let HorseUrl = 'http://electric.horse/horse.jpg';
 		let SdfTexture = new TTexture("sdf",SdfUrl);
 		let HorseTexture = new TTexture("Horse",HorseUrl);
-		
-		let ClearColour = new float4(0,0,0,1);
 
 		var Colours =
 		[
@@ -177,9 +139,8 @@ void main()
 		HexToColour4('5FD1FFFF'),
 		HexToColour4('5FFFD1FF')
 		];
-		 
+
 		let HorseBlitter = new TBlitter("HorseBlitter", FragShader_SdfHorse );
-		let CopyBlitter = new TBlitter("CopyBlitter", FragShader_Copy );
 
 		let SetHorseUniforms = function(Shader,Geo)
 		{
@@ -187,7 +148,7 @@ void main()
 			Shader.SetUniform( 'SdfTexture', SdfTexture );
 			Shader.SetUniformFloat('Time', Time);
 			Shader.SetUniformInt( 'ColourCount', Colours.length );
-			
+
 			//	gr; can't use less than with this xml html
 			for ( let i=0;	i<Colours.length;	i++ )
 			{
@@ -195,19 +156,52 @@ void main()
 				Shader.SetUniform( ColourUniform, Colours[i] );
 			}
 		};
+
+		let Render = function()
+		{
+			Time += 1.0 / 60.0;
+			HorseBlitter.Render( LayerTarget, SetHorseUniforms );
+		};
+		return Render;
+	}
+
+	function main()
+	{
+		var Canvas = document.getElementById('glcanvas');
+		var Context = new TContext( Canvas );
+		var Screen = new TScreen( Canvas );
+
+		var ResizeCanvas = function()
+		{
+			console.log("ResizeCanvas");
+			Canvas.width = window.innerWidth;
+			//	gr: where did this border come from?
+			Canvas.height = window.innerHeight+4;
+		}
+
+		// resize the canvas to fill browser window dynamically
+		window.addEventListener('resize', ResizeCanvas, false);
+		ResizeCanvas();
+
+
+		let LayerTexture = new TTexture( "Layer", Screen.GetWidth(), Screen.GetHeight() );
+		let HorseRender = SetupHorseRender( Screen, LayerTexture );
 		
+		let ClearColour = new float4(0,0,0,1);
+
+		let CopyBlitter = new TBlitter("CopyBlitter", FragShader_Copy );
+
 		let SetCopyUniforms = function(Shader,Geo)
 		{
 			Shader.SetUniform( 'ColourTexture', LayerTexture );
 		};
 
 		function Render()
-		{
-			Time += 1.0 / 60.0;
+		{	
 			
 			try
 			{
-				HorseBlitter.Render( LayerTarget, SetHorseUniforms );
+				HorseRender();
 				CopyBlitter.Render( Screen, SetCopyUniforms );
 			}
 			catch(Exception)
