@@ -164,107 +164,68 @@ void main()
 		let LayerTexture = new TTexture( "Layer", 100, 100 );
 		let LayerTarget = new TRenderTarget( "Layer", LayerTexture );
 		
-		function Render()
-		{
-			Time += 1.0 / 60.0;
-			
-			var Colours = [
-			'ADFF5FFF',
-			'FFF15FFF',
-			'FFB25FFF',
-			'FF5F83FF',
-			'FF5FFFFF',
-			'C15FFFFF',
-			'865FFFFF',
-			'5F8EFFFF',
-			'5FD1FFFF',
-			'5FFFD1FF',
-			];
-			
-            
-			try
-			{
-                Screen.Bind();
-				// Draw the object given a set of 2D points, in this case a square
-				drawObject( shaderProgram, CanvasGeo, SdfTexture, HorseTexture, Time, Colours );
-			}
-			catch(Exception)
-			{
-				//	rethrow
-				throw Exception;
-			}
-			finally
-			{
-				//	always request redraw
-				requestAnimationFrame( Render );
-			}
-		}
-		
-		
-
-
-		// Setup the shader program with the vertex shader and the fragment shader
-		var shaderProgram = buildShaderProgram(gl,VertexShader,FragShader_SdfHorse);
+		let HorseSdfShader = new TShader("Sdf", VertexShader, FragShader_SdfHorse );
 		
 		var SdfUrl = 'http://electric.horse/horse_sdf.png';
 		var HorseUrl = 'http://electric.horse/horse.jpg';
 		var SdfTexture = new TTexture("sdf",SdfUrl);
 		var HorseTexture = new TTexture("Horse",HorseUrl);
       
-        var RenderTarget = new TRenderTarget("TestRenderTarget", )
+        //var RenderTarget = new TRenderTarget("TestRenderTarget", )
 
+		function Render()
+		{
+			Time += 1.0 / 60.0;
+			
+			var Colours =
+			[
+			 'ADFF5FFF',
+			 'FFF15FFF',
+			 'FFB25FFF',
+			 'FF5F83FF',
+			 'FF5FFFFF',
+			 'C15FFFFF',
+			 '865FFFFF',
+			 '5F8EFFFF',
+			 '5FD1FFFF',
+			 '5FFFD1FF'
+			];
+			 
+			 try
+			 {
+				 Screen.Bind();
+				 // Draw the object given a set of 2D points, in this case a square
+				 drawObject( HorseSdfShader, CanvasGeo, SdfTexture, HorseTexture, Time, Colours );
+			 }
+			 catch(Exception)
+			 {
+				 //	rethrow
+				 throw Exception;
+			 }
+			 finally
+			 {
+				 //	always request redraw
+				 requestAnimationFrame( Render );
+			 }
+		}
 
 		Render();
 	}
 
-	// Create a GLSL shader program given:
-	// - a WebGL context,
-	// - a string for the vertex shader, and
-	// - a string for the fragment shader.
-	function buildShaderProgram(gl, vertShaderSrc, fragShaderSrc)
-	{
-		function buildShader(type, source)
-		{
-			var sh;
-			if (type == "fragment")
-				sh = gl.createShader(gl.FRAGMENT_SHADER);
-			else if (type == "vertex")
-				sh = gl.createShader(gl.VERTEX_SHADER);
-			else // Unknown shader type
-				return null;
-			gl.shaderSource(sh, source);
-			gl.compileShader(sh);
-			// See if it compiled successfully
-			if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
-				console.log("An error occurred compiling the " + type +
-				" shader: " + gl.getShaderInfoLog(sh));
-				return null;
-			} else { return sh; }
-		};
-		
-		var prog = gl.createProgram();
-		gl.attachShader(prog, buildShader('vertex', vertShaderSrc));
-		gl.attachShader(prog, buildShader('fragment', fragShaderSrc));
-		gl.linkProgram(prog);
-		if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
-			throw "Could not link the shader program!";
-		}
-		return prog;
-	}
 
 
 	// Draw an object given a shader program and a list of vertices
-	function drawObject(shaderProgram, Geo, SdfTexture, HorseTexture, Time, Colours )
+	function drawObject(Shader, Geo, SdfTexture, HorseTexture, Time, Colours )
 	{
-		gl.useProgram(shaderProgram);
-
-        BindTexture( SdfTexture, shaderProgram, 'SdfTexture', 0 );
-        BindTexture( HorseTexture, shaderProgram, 'HorseTexture', 1 );
+		Shader.Bind();
+		
+        BindTexture( SdfTexture, Shader, 'SdfTexture', 0 );
+        BindTexture( HorseTexture, Shader, 'HorseTexture', 1 );
         
-		let TimeUniform = gl.getUniformLocation(shaderProgram, "Time");
+		let TimeUniform = gl.getUniformLocation( Shader.Program, "Time");
 
 
-		let ColourCountUniform = gl.getUniformLocation(shaderProgram, "ColourCount");
+		let ColourCountUniform = gl.getUniformLocation( Shader.Program, "ColourCount");
 		gl.uniform1i(ColourCountUniform, Colours.length);
 		
 		// Set black as the background color
@@ -279,11 +240,11 @@ void main()
 		//	gr; can't use less than with this xml html
 		for ( let i=0;	i<Colours.length;	i++ )
 		{
-			let ColourUniform = gl.getUniformLocation(shaderProgram, "Colour" + i );
+			let ColourUniform = gl.getUniformLocation( Shader.Program, "Colour" + i );
 			gl.uniform3f(ColourUniform, GetRed(Colours[i]), GetGreen(Colours[i]), GetBlue(Colours[i]) );
 		}
 		gl.uniform1f(TimeUniform, Time);
-		let PositionUniform = gl.getAttribLocation(shaderProgram, "a_position");
+		let PositionUniform = gl.getAttribLocation( Shader.Program, "a_position");
 
 
 		//	setup buffer

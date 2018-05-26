@@ -49,42 +49,6 @@ function TContext(CanvasElement)
 }
 
 
-// Create a GLSL shader program given:
-// - a WebGL context,
-// - a string for the vertex shader, and
-// - a string for the fragment shader.
-function buildShaderProgram(vertShaderSrc, fragShaderSrc)
-{
-	function buildShader(type, source)
-	{
-		var sh;
-		if (type == "fragment")
-			sh = gl.createShader(gl.FRAGMENT_SHADER);
-		else if (type == "vertex")
-			sh = gl.createShader(gl.VERTEX_SHADER);
-		else // Unknown shader type
-			return null;
-		gl.shaderSource(sh, source);
-		gl.compileShader(sh);
-		// See if it compiled successfully
-		if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
-			console.log("An error occurred compiling the " + type +
-			" shader: " + gl.getShaderInfoLog(sh));
-			return null;
-		} else { return sh; }
-	};
-	
-	var prog = gl.createProgram();
-	gl.attachShader(prog, buildShader('vertex', vertShaderSrc));
-	gl.attachShader(prog, buildShader('fragment', fragShaderSrc));
-	gl.linkProgram(prog);
-	if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
-		throw "Could not link the shader program!";
-	}
-	return prog;
-}
-
-
 //	let hello = new float2(0,0)
 function float2(x,y)
 {
@@ -336,9 +300,9 @@ function TRenderTarget(Name,Texture)
 		this.CreateFrameBuffer( Texture );
 }
 
-function BindTexture(Texture,Program,Uniform,TextureIndex)
+function BindTexture(Texture,Shader,Uniform,TextureIndex)
 {
-	let UniformPtr = gl.getUniformLocation(Program, Uniform);
+	let UniformPtr = gl.getUniformLocation( Shader.Program, Uniform );
 	//  https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API/Tutorial/Using_textures_in_WebGL
 	//  WebGL provides a minimum of 8 texture units;
 	let GlTextureNames = [ gl.TEXTURE0, gl.TEXTURE1, gl.TEXTURE2, gl.TEXTURE3, gl.TEXTURE4, gl.TEXTURE5, gl.TEXTURE6, gl.TEXTURE7 ];
@@ -356,3 +320,51 @@ function BindTexture(Texture,Program,Uniform,TextureIndex)
 	gl.uniform1i(UniformPtr, TextureIndex );
 }
 
+
+function TShader(Name,VertShaderSource,FragShaderSource)
+{
+	this.Name = Name;
+	this.VertShader = null;
+	this.FragShader = null;
+	this.Program = null;
+	
+	this.CompileShader = function(Type,Source)
+	{
+		let Shader = gl.createShader(Type);
+		gl.shaderSource( Shader, Source );
+		gl.compileShader( Shader );
+		
+		let CompileStatus = gl.getShaderParameter( Shader, gl.COMPILE_STATUS);
+		if ( !CompileStatus )
+		{
+			let Error = gl.getShaderInfoLog(Shader);
+			throw "Failed to compile " + Type + " shader: " + Error;
+		}
+		return Shader;
+	}
+	
+	this.CompileProgram = function()
+	{
+		let Program = gl.createProgram();
+		gl.attachShader( Program, this.VertShader );
+		gl.attachShader( Program, this.FragShader );
+		gl.linkProgram( Program );
+		
+		let LinkStatus = gl.getProgramParameter( Program, gl.LINK_STATUS );
+		if ( !LinkStatus )
+		{
+			//let Error = gl.getShaderInfoLog(Shader);
+			throw "Failed to link " + this.Name + " shaders";
+		}
+		return Program;
+	}
+	
+	this.Bind = function()
+	{
+		gl.useProgram( this.Program );
+	}
+	
+	this.FragShader = this.CompileShader( gl.FRAGMENT_SHADER, FragShaderSource );
+	this.VertShader = this.CompileShader( gl.VERTEX_SHADER, VertShaderSource );
+	this.Program = this.CompileProgram();
+}
