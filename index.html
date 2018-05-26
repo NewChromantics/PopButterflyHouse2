@@ -23,22 +23,23 @@
 		Your browser doesn't appear to support the HTML5 <code>&lt;canvas&gt;</code> element.
 	</canvas>
 <script>
+
+
+var VertexShader = `
+attribute vec2 a_position;
+varying vec2 uv;
+void main()
+{
+	vec2 Pos2 = mix( vec2(-1,-1), vec2(1,1), a_position );
+	gl_Position = vec4(Pos2, 0.0, 1.0);
+	uv = vec2( a_position.x, 1.0-a_position.y);
 	
-	
-		var VertexShader = `
-		attribute vec2 a_position;
-		varying vec2 uv;
-		void main()
-		{
-			vec2 Pos2 = mix( vec2(-1,-1), vec2(1,1), a_position );
-			gl_Position = vec4(Pos2, 0.0, 1.0);
-			uv = vec2( a_position.x, 1.0-a_position.y);
-			
-			uv.x = mix( 0.0, 1.0, uv.x );
-			uv.y = mix( 0.0, 1.0, uv.y );
-		}
+	uv.x = mix( 0.0, 1.0, uv.x );
+	uv.y = mix( 0.0, 1.0, uv.y );
+}
 `;
-var FragShader = `
+
+var FragShader_SdfHorse = `
 precision highp float;
 uniform float Time;
 varying vec2 uv;
@@ -101,11 +102,20 @@ void main()
 `;
 
 
+var FragShader_Copy = `
+precision highp float;
+varying vec2 uv;
+uniform sampler2D ColourTexture;
+void main()
+{
+	gl_FragColor = texture2D( SdfTexture, uv );
+}
+`;
+
 	window.onload = main;
 
 	function main()
 	{
-		console.log("main");
 		var Canvas = document.getElementById('glcanvas');
 		var Context = new TContext( Canvas );
 		var Screen = new TScreen( Canvas );
@@ -151,8 +161,8 @@ void main()
 		CanvasGeo.AddAttribute( new TAttribute("a_position", Uvs ) );
 		
 		
-		
-		
+		let LayerTexture = new TTexture( "Layer", 100, 100 );
+		let LayerTarget = new TRenderTarget( "Layer", LayerTexture );
 		
 		function Render()
 		{
@@ -194,9 +204,8 @@ void main()
 
 
 		// Setup the shader program with the vertex shader and the fragment shader
-		var shaderProgram = buildShaderProgram(gl,VertexShader,FragShader);
-		gl.useProgram(shaderProgram);
-
+		var shaderProgram = buildShaderProgram(gl,VertexShader,FragShader_SdfHorse);
+		
 		var SdfUrl = 'http://electric.horse/horse_sdf.png';
 		var HorseUrl = 'http://electric.horse/horse.jpg';
 		var SdfTexture = new TTexture("sdf",SdfUrl);
@@ -247,6 +256,8 @@ void main()
 	// Draw an object given a shader program and a list of vertices
 	function drawObject(shaderProgram, Geo, SdfTexture, HorseTexture, Time, Colours )
 	{
+		gl.useProgram(shaderProgram);
+
         BindTexture( SdfTexture, shaderProgram, 'SdfTexture', 0 );
         BindTexture( HorseTexture, shaderProgram, 'HorseTexture', 1 );
         

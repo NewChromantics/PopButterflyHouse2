@@ -109,207 +109,250 @@ function float4(x,y,z,w)
 }
 
 
-	function TAttribute(Uniform,Buffer)
+function TAttribute(Uniform,Buffer)
+{
+	this.Uniform = Uniform;
+	
+	let TypeAndSize = PopGl.GetTypeAndSize(Buffer[0]);
+	this.Type = TypeAndSize.Type;
+	this.Size = TypeAndSize.Size;
+	this.Stride = 0;
+	this.Data = Buffer;
+	
+	this.EnumVertexData = function(EnumFloat)
 	{
-		this.Uniform = Uniform;
-		
-		let TypeAndSize = PopGl.GetTypeAndSize(Buffer[0]);
-		this.Type = TypeAndSize.Type;
-		this.Size = TypeAndSize.Size;
-		this.Stride = 0;
-		this.Data = Buffer;
-		
-		this.EnumVertexData = function(EnumFloat)
+		let EnumFloats = function(Element)
 		{
-			let EnumFloats = function(Element)
-			{
-				if ( typeof Element == "number" )	{	EnumFloat(Element);	}
-				else if ( Element instanceof float2 )	{	EnumFloat(Element.x);	EnumFloat(Element.y);	}
-				else if ( Element instanceof float3 )	{	EnumFloat(Element.x);	EnumFloat(Element.y);	EnumFloat(Element.z);	}
-				else if ( Element instanceof float4 )	{	EnumFloat(Element.x);	EnumFloat(Element.y);	EnumFloat(Element.z);	EnumFloat(Element.w);	}
-				else throw "Unhandled type " + typeof Element;
-			}
-			this.Data.forEach( EnumFloats );
+			if ( typeof Element == "number" )	{	EnumFloat(Element);	}
+			else if ( Element instanceof float2 )	{	EnumFloat(Element.x);	EnumFloat(Element.y);	}
+			else if ( Element instanceof float3 )	{	EnumFloat(Element.x);	EnumFloat(Element.y);	EnumFloat(Element.z);	}
+			else if ( Element instanceof float4 )	{	EnumFloat(Element.x);	EnumFloat(Element.y);	EnumFloat(Element.z);	EnumFloat(Element.w);	}
+			else throw "Unhandled type " + typeof Element;
 		}
+		this.Data.forEach( EnumFloats );
 	}
+}
 
-	function TGeometry(Name)
+function TGeometry(Name)
+{
+	this.Name = Name;
+	this.Attributes = [];
+	this.Buffer = null;		//	gl vertex buffer
+	
+	this.bind = function()
 	{
-		this.Name = Name;
-		this.Attributes = [];
-		this.Buffer = null;		//	gl vertex buffer
-		
-		this.bind = function()
-		{
-			throw "todo";
-		}
-		
-		this.AddAttribute = function(Attribute)
-		{
-			//this.Attributes[Attribute.Uniform] = Attribute;
-			this.Attributes[0] = Attribute;
-		}
-		
-		this.CreateBuffer = function()
-		{
-		}
-		
-		this.GetVertexData = function()
-		{
-			let Floats = [];
-			let EnumFloat = function(Float)
-			{
-				Floats.push( Float );
-			};
-			let EnumFloats = function(Attrib)
-			{
-				Attrib.EnumVertexData( EnumFloat );
-			};
-			this.Attributes.forEach( EnumFloats );
-			return new Float32Array( Floats );
-		}
+		throw "todo";
 	}
+	
+	this.AddAttribute = function(Attribute)
+	{
+		//this.Attributes[Attribute.Uniform] = Attribute;
+		this.Attributes[0] = Attribute;
+	}
+	
+	this.CreateBuffer = function()
+	{
+	}
+	
+	this.GetVertexData = function()
+	{
+		let Floats = [];
+		let EnumFloat = function(Float)
+		{
+			Floats.push( Float );
+		};
+		let EnumFloats = function(Attrib)
+		{
+			Attrib.EnumVertexData( EnumFloat );
+		};
+		this.Attributes.forEach( EnumFloats );
+		return new Float32Array( Floats );
+	}
+}
 
-    function TTexture(Name,Url)
-    {
-        this.Name = Name;
-        this.Asset = null;
-        
-        this.CreateAsset = function()
-        {
-            this.Asset = gl.createTexture();
-            this.WritePixels( 1, 1, [255, 0, 255, 255] );
-        }
-        
-        this.WritePixels = function(Width,Height,Pixels)
-        {
-            gl.bindTexture(gl.TEXTURE_2D, this.Asset );
-            const level = 0;
-            const internalFormat = gl.RGBA;
-            const srcFormat = gl.RGBA;
-            const srcType = gl.UNSIGNED_BYTE;
-            
-            if ( Pixels instanceof Image )
-            {
-                gl.texImage2D(gl.TEXTURE_2D, level, internalFormat,	srcFormat, srcType, Pixels);
-            }
-            else
-            {
-                //  if Pixels is array
-                const border = 0;
-                const PixelData = new Uint8Array(Pixels);
-                gl.texImage2D(gl.TEXTURE_2D, level, internalFormat, Width, Height, border, srcFormat, srcType, PixelData);
-            }
+function AllocPixelBuffer(Size,Colour8888)
+{
+	let PixelArray = new Array(Size*4);
+	for ( let p=0;	p<Size;	p+=4 )
+	{
+		PixelArray[ p+0 ] = Colour8888[0];
+		PixelArray[ p+1 ] = Colour8888[1];
+		PixelArray[ p+2 ] = Colour8888[2];
+		PixelArray[ p+3 ] = Colour8888[3];
+	}
+	return new Uint8Array(PixelArray);
+}
 
-            // WebGL1 has different requirements for power of 2 images
-            // vs non power of 2 images so check if the image is a
-            // power of 2 in both dimensions.
-            // No, it's not a power of 2. Turn of mips and set
-            // wrapping to clamp to edge
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-        }
-        
-        this.Load = function(Url)
-        {
-            const image = new Image();
-            image.crossOrigin = "anonymous";
-            let This = this;
-            image.onload = function()
-            {
-                This.WritePixels( 0, 0, image );
-            };
-            //  trigger load
-            image.src = Url;
-        }
-        
-        
-        //  auto init
-        this.CreateAsset();
-        
-        if ( Url !== undefined )
-            this.Load( Url );
-    }
+function TTexture(Name,WidthOrUrl,Height)
+{
+	this.Name = Name;
+	this.Asset = null;
+	this.Width = 0;
+	this.Height = 0;
 
-    function TScreen(CanvasElement)
-    {
-        this.CanvasElement = CanvasElement;
-        
-        this.GetWidth = function()
-        {
-            return this.CanvasElement.width;
-        }
-        
-        this.GetHeight = function()
-        {
-            return this.CanvasElement.height;
-        }
-        
-        //  unbind any frame buffer
-        this.Bind = function()
-        {
-            gl.bindFramebuffer( gl.FRAMEBUFFER, null );
-            gl.viewport(0, 0, this.GetWidth(), this.GetHeight() );
-        }
-    }
+	const TextureInitColour = [255, 0, 255, 255];
+	
+	this.GetWidth = function()	{	return this.Width;	}
+	this.GetHeight = function()	{	return this.Height;	}
 
-    function TRenderTarget(Name,Texture)
-    {
-        this.Name = Name;
-        this.FrameBuffer = null;
-        this.Texture = null;
-        
-        this.CreateFrameBuffer = function(Texture)
-        {
-            this.FrameBuffer = gl.createFrameBuffer();
-            this.Texture = Texture;
-            
-            this.Bind();
-            
-            //  attach this texture to colour output
-            const attachmentPoint = gl.COLOR_ATTACHMENT0;
-            gl.framebufferTexture2D(gl.FRAMEBUFFER, attachmentPoint, gl.TEXTURE_2D, this.Texture.Asset, level);
-        }
-        
-        //  bind for rendering
-        this.Bind = function()
-        {
-            gl.bindFramebuffer( gl.FRAMEBUFFER, this.FrameBuffer );
-            gl.viewport(0, 0, this.GetWidth(), this.GetHeight() );
-        }
-        
-        this.GetWidth = function()
-        {
-            return this.Texture.GetWidth();
-        }
-        
-        this.GetHeight = function()
-        {
-            return this.Texture.GetHeight();
-        }
-        
-        if ( Texture !== undefined )
-            this.CreateFrameBuffer( Texture );
-    }
+	this.CreateAsset = function()
+	{
+		this.Asset = gl.createTexture();
+	}
+	
+	this.WritePixels = function(Width,Height,Pixels)
+	{
+		gl.bindTexture(gl.TEXTURE_2D, this.Asset );
+		const level = 0;
+		const internalFormat = gl.RGBA;
+		const srcFormat = gl.RGBA;
+		const srcType = gl.UNSIGNED_BYTE;
+		
+		if ( Pixels instanceof Image )
+		{
+			console.log(Pixels);
+			this.Width = Pixels.width;
+			this.Height = Pixels.height;
+			gl.texImage2D(gl.TEXTURE_2D, level, internalFormat,	srcFormat, srcType, Pixels);
+		}
+		else
+		{
+			this.Width = Width;
+			this.Height = Height;
+			//  if Pixels is Uint8Array
+			const border = 0;
+			gl.texImage2D(gl.TEXTURE_2D, level, internalFormat, Width, Height, border, srcFormat, srcType, Pixels);
+		}
 
-    function BindTexture(Texture,Program,Uniform,TextureIndex)
-    {
-        let UniformPtr = gl.getUniformLocation(Program, Uniform);
-        //  https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API/Tutorial/Using_textures_in_WebGL
-        //  WebGL provides a minimum of 8 texture units;
-        let GlTextureNames = [ gl.TEXTURE0, gl.TEXTURE1, gl.TEXTURE2, gl.TEXTURE3, gl.TEXTURE4, gl.TEXTURE5, gl.TEXTURE6, gl.TEXTURE7 ];
+		// WebGL1 has different requirements for power of 2 images
+		// vs non power of 2 images so check if the image is a
+		// power of 2 in both dimensions.
+		// No, it's not a power of 2. Turn of mips and set
+		// wrapping to clamp to edge
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+	}
+	
+	this.Load = function(Url)
+	{
+		//	init whilst we wait for load
+		this.WritePixels( 1, 1, AllocPixelBuffer( 1, TextureInitColour ) );
+		
+		const image = new Image();
+		image.crossOrigin = "anonymous";
+		let This = this;
+		image.onload = function()
+		{
+			This.WritePixels( 0, 0, image );
+		};
+		//  trigger load
+		image.src = Url;
+	}
+	
+	
+	//  auto init
+	if ( typeof WidthOrUrl === 'number' )
+	{
+		this.CreateAsset();
+		let Width = WidthOrUrl;
+		let Pixels = AllocPixelBuffer( Width*Height, TextureInitColour );
+		this.WritePixels( Width, Height, Pixels );
+	}
+	else if ( typeof WidthOrUrl === 'string' )
+	{
+		let Url = WidthOrUrl;
+		this.CreateAsset();
+		this.Load( Url );
+	}
+	else
+	{
+		//	defalt init
+		this.CreateAsset();
+		this.WritePixels( 1, 1, AllocPixelBuffer( 1, TextureInitColour ) );
+	}
+}
 
-        //	setup textures
-        gl.activeTexture( GlTextureNames[TextureIndex] );
-        try
-        {
-            gl.bindTexture(gl.TEXTURE_2D, Texture.Asset);
-        }
-        catch
-        {
-            //  todo: bind "invalid" texture
-        }
-        gl.uniform1i(UniformPtr, TextureIndex );
-    }
+function TScreen(CanvasElement)
+{
+	this.CanvasElement = CanvasElement;
+	
+	this.GetWidth = function()
+	{
+		return this.CanvasElement.width;
+	}
+	
+	this.GetHeight = function()
+	{
+		return this.CanvasElement.height;
+	}
+	
+	//  unbind any frame buffer
+	this.Bind = function()
+	{
+		gl.bindFramebuffer( gl.FRAMEBUFFER, null );
+		gl.viewport(0, 0, this.GetWidth(), this.GetHeight() );
+	}
+}
+
+function TRenderTarget(Name,Texture)
+{
+	this.Name = Name;
+	this.FrameBuffer = null;
+	this.Texture = null;
+	
+	this.CreateFrameBuffer = function(Texture)
+	{
+		console.log(gl);
+		this.FrameBuffer = gl.createFramebuffer();
+		this.Texture = Texture;
+		
+		this.Bind();
+		
+		//  attach this texture to colour output
+		const level = 0;
+		const attachmentPoint = gl.COLOR_ATTACHMENT0;
+		gl.framebufferTexture2D(gl.FRAMEBUFFER, attachmentPoint, gl.TEXTURE_2D, this.Texture.Asset, level);
+	}
+	
+	//  bind for rendering
+	this.Bind = function()
+	{
+		gl.bindFramebuffer( gl.FRAMEBUFFER, this.FrameBuffer );
+		gl.viewport(0, 0, this.GetWidth(), this.GetHeight() );
+	}
+	
+	this.GetWidth = function()
+	{
+		return this.Texture.GetWidth();
+	}
+	
+	this.GetHeight = function()
+	{
+		return this.Texture.GetHeight();
+	}
+	
+	if ( Texture !== undefined )
+		this.CreateFrameBuffer( Texture );
+}
+
+function BindTexture(Texture,Program,Uniform,TextureIndex)
+{
+	let UniformPtr = gl.getUniformLocation(Program, Uniform);
+	//  https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API/Tutorial/Using_textures_in_WebGL
+	//  WebGL provides a minimum of 8 texture units;
+	let GlTextureNames = [ gl.TEXTURE0, gl.TEXTURE1, gl.TEXTURE2, gl.TEXTURE3, gl.TEXTURE4, gl.TEXTURE5, gl.TEXTURE6, gl.TEXTURE7 ];
+
+	//	setup textures
+	gl.activeTexture( GlTextureNames[TextureIndex] );
+	try
+	{
+		gl.bindTexture(gl.TEXTURE_2D, Texture.Asset);
+	}
+	catch
+	{
+		//  todo: bind "invalid" texture
+	}
+	gl.uniform1i(UniformPtr, TextureIndex );
+}
 
